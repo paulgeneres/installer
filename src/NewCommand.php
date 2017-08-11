@@ -82,8 +82,10 @@ class NewCommand extends Command
 
         $process = new Process(implode(' && ', $commands), $directory, null, null, null);
 
-        if ('\\' !== DIRECTORY_SEPARATOR && file_exists('/dev/tty') && is_readable('/dev/tty')) {
+        try {
             $process->setTty(true);
+        } catch (RuntimeException $e) {
+            $output->writeln('<comment>' . $e->getMessage() . '</comment>');
         }
 
         $process->run(function ($type, $line) use ($output) {
