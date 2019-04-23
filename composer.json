@@ -1,5 +1,5 @@
 {
-    "name": "paulgeneres/laravel-installer",
+    "name": "laravel/installer",
     "description": "Laravel application installer.",
     "keywords": ["laravel"],
     "license": "MIT",
