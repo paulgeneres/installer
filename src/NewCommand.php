@@ -91,7 +91,7 @@ class NewCommand extends Command
             try {
                 $process->setTty(true);
             } catch (RuntimeException $e) {
-                $output->writeln('Warning: '.$e->getMessage());
+                $output->writeln('<comment>Warning: '.$e->getMessage().'</comment>');
             }
         }
 
