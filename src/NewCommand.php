@@ -2,17 +2,17 @@
 
 namespace Laravel\Installer\Console;
 
-use ZipArchive;
-use RuntimeException;
 use GuzzleHttp\Client;
-use Symfony\Component\Process\Process;
-use Symfony\Component\Filesystem\Filesystem;
+use RuntimeException;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
+use ZipArchive;
 
 class NewCommand extends Command
 {
@@ -28,6 +28,7 @@ class NewCommand extends Command
             ->setDescription('Create a new Laravel application')
             ->addArgument('name', InputArgument::OPTIONAL)
             ->addOption('dev', null, InputOption::VALUE_NONE, 'Installs the latest "development" release')
+            ->addOption('auth', null, InputOption::VALUE_NONE, 'Installs the Laravel authentication scaffolding')
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Forces install even if the directory already exists');
     }
 
@@ -36,15 +37,21 @@ class NewCommand extends Command
      *
      * @param  \Symfony\Component\Console\Input\InputInterface  $input
      * @param  \Symfony\Component\Console\Output\OutputInterface  $output
-     * @return void
+     * @return int
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        if (version_compare(PHP_VERSION, '7.3.0', '<')) {
+            throw new RuntimeException('The Laravel installer requires PHP 7.3.0 or greater. Please use "composer create-project laravel/laravel" instead.');
+        }
+
         if (! extension_loaded('zip')) {
             throw new RuntimeException('The Zip PHP extension is not installed. Please install it and try again.');
         }
 
-        $directory = ($input->getArgument('name')) ? getcwd().'/'.$input->getArgument('name') : getcwd();
+        $name = $input->getArgument('name');
+
+        $directory = $name && $name !== '.' ? getcwd().'/'.$name : getcwd();
 
         if (! $input->getOption('force')) {
             $this->verifyApplicationDoesntExist($directory);
@@ -78,19 +85,25 @@ class NewCommand extends Command
             }, $commands);
         }
 
-        $process = new Process(implode(' && ', $commands), $directory, null, null, null);
+        $process = Process::fromShellCommandline(implode(' && ', $commands), $directory, null, null, null);
 
-        try {
-            $process->setTty(true);
-        } catch (RuntimeException $e) {
-            $output->writeln('<comment>' . $e->getMessage() . '</comment>');
+        if ('\\' !== DIRECTORY_SEPARATOR && file_exists('/dev/tty') && is_readable('/dev/tty')) {
+            try {
+                $process->setTty(true);
+            } catch (RuntimeException $e) {
+                $output->writeln('Warning: '.$e->getMessage());
+            }
         }
 
         $process->run(function ($type, $line) use ($output) {
             $output->write($line);
         });
 
-        $output->writeln('<comment>Application ready! Build something amazing.</comment>');
+        if ($process->isSuccessful()) {
+            $output->writeln('<comment>Application ready! Build something amazing.</comment>');
+        }
+
+        return 0;
     }
 
     /**
@@ -129,6 +142,9 @@ class NewCommand extends Command
             case 'develop':
                 $filename = 'latest-develop.zip';
                 break;
+            case 'auth':
+                $filename = 'latest-auth.zip';
+                break;
             case 'master':
                 $filename = 'latest.zip';
                 break;
@@ -152,7 +168,11 @@ class NewCommand extends Command
     {
         $archive = new ZipArchive;
 
-        $archive->open($zipFile);
+        $response = $archive->open($zipFile, ZipArchive::CHECKCONS);
+
+        if ($response === ZipArchive::ER_NOZIP) {
+            throw new RuntimeException('The zip file could not download. Verify that you are able to access: http://cabinet.laravel.com/latest.zip');
+        }
 
         $archive->extractTo($directory);
 
@@ -207,6 +227,10 @@ class NewCommand extends Command
     {
         if ($input->getOption('dev')) {
             return 'develop';
+        }
+
+        if ($input->getOption('auth')) {
+            return 'auth';
         }
 
         return 'master';
