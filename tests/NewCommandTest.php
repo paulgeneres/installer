@@ -6,7 +6,6 @@ use Laravel\Installer\Console\NewCommand;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
-use Symfony\Component\Filesystem\Filesystem;
 
 class NewCommandTest extends TestCase
 {
@@ -16,7 +15,11 @@ class NewCommandTest extends TestCase
         $scaffoldDirectory = __DIR__.'/../'.$scaffoldDirectoryName;
 
         if (file_exists($scaffoldDirectory)) {
-            (new Filesystem)->remove($scaffoldDirectory);
+            if (PHP_OS_FAMILY == 'Windows') {
+                exec("rd /s /q \"$scaffoldDirectory\"");
+            } else {
+                exec("rm -rf \"$scaffoldDirectory\"");
+            }
         }
 
         $app = new Application('Laravel Installer');
@@ -24,11 +27,10 @@ class NewCommandTest extends TestCase
 
         $tester = new CommandTester($app->find('new'));
 
-        $statusCode = $tester->execute(['name' => $scaffoldDirectoryName, '--auth' => null]);
+        $statusCode = $tester->execute(['name' => $scaffoldDirectoryName]);
 
-        $this->assertEquals($statusCode, 0);
+        $this->assertSame(0, $statusCode);
         $this->assertDirectoryExists($scaffoldDirectory.'/vendor');
         $this->assertFileExists($scaffoldDirectory.'/.env');
-        $this->assertFileExists($scaffoldDirectory.'/resources/views/auth/login.blade.php');
     }
 }
